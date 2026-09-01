@@ -7,7 +7,11 @@ authors = [
     { name = "Dylan Fritz", email = "dfritz1211@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "dotenv>=0.9.9",
+    "spotipy>=2.26.0",
+    "syncedlyrics>=1.0.1",
+]
 
 [project.scripts]
 spotifylyricstreamer = "spotifylyricstreamer:main"

@@ -37,6 +37,13 @@ def parse_lrc(lrc_string:str):
                 
                 timestamp_str = match_.group()
 
+                # >>> FIX: skip non-timestamp tags like [Intro], [ti:...], [ar:...]
+                ts_clean = timestamp_str.replace("[","").replace("]","").replace(".", ":")
+                parts = ts_clean.split(":")
+                if not all(p.isdigit() for p in parts):
+                    continue
+                # <<< END FIX
+
                 timestamp = str_to_timestamp(timestamp_str)
 
                 lyric = line.replace(match_.group(), "").strip()
@@ -60,6 +67,14 @@ def parse_lrc(lrc_string:str):
                 str_indexes.append(match_.span()[0])
 
                 timestamp_str = match_.group()
+
+                # >>> FIX: skip non-timestamp tags
+                ts_clean = timestamp_str.replace("[","").replace("]","").replace(".", ":")
+                parts = ts_clean.split(":")
+                if not all(p.isdigit() for p in parts):
+                    continue
+                # <<< END FIX
+
                 timestamps.append(str_to_timestamp(timestamp_str))
 
             c_index = 0
@@ -89,4 +104,3 @@ def fetch_lrc(song_name:str, artist:str, allow_plain_format=False):
 
 def fetch_parsed_lyrics(song_name:str, artist:str, allow_plain_format=False):
     return parse_lrc(fetch_lrc(song_name=song_name, artist=artist))
-
