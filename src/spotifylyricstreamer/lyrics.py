@@ -20,6 +20,9 @@ def str_to_timestamp(timestamp_str):
     return timestamp
 
 def parse_lrc(lrc_string:str):
+
+    if lrc_string is None:
+        return None
     TIMESTAMP_REGEX = "\\[[^\\]]*\\]"
     pattern = re.compile(TIMESTAMP_REGEX)
 
