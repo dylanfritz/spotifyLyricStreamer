@@ -48,8 +48,8 @@ def lyrics_loop(manager: LyricManager, output: OutputInterface):
 
         if lyrics is None:
             output.on_no_lyrics_found()
-            wait = (duration - base_progress).total_seconds() + 1.5
-            new_song_event.wait(timeout=max(wait, 0))
+            # wait = (duration - base_progress).total_seconds() + 1.5
+            # new_song_event.wait(timeout=max(wait, 0))
             continue
 
         current_progress = base_progress
