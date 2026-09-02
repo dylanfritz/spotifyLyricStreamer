@@ -1,6 +1,6 @@
-from client import create_spotify_client
-from lyrics import fetch_parsed_lyrics
-from song import Song
+from spotifylyricstreamer.client import create_spotify_client
+from spotifylyricstreamer.lyrics import fetch_parsed_lyrics
+from spotifylyricstreamer.song import Song
 
 import time
 from datetime import timedelta
