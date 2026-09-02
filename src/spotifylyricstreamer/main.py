@@ -1,5 +1,7 @@
 from spotifylyricstreamer.LyricManager import LyricManager
+from spotifylyricstreamer.output import OutputInterface, TerminalOutput
 from datetime import timedelta
+
 
 import threading
 import time
@@ -29,7 +31,7 @@ def time_elapsed(start, now) -> timedelta:
     return timedelta(seconds=now - start)
 
 
-def lyrics_loop(manager: LyricManager):
+def lyrics_loop(manager: LyricManager, output: OutputInterface):
     while running:
         new_song_event.wait()
         new_song_event.clear()
@@ -42,14 +44,12 @@ def lyrics_loop(manager: LyricManager):
             duration = song.duration_td
             start = time.monotonic()
 
-        print("NEW SONG: ")
-        print(song.name)
-        print(song.artist)
+        output.on_new_song(name=song.name, artist=song.artist)
 
         if lyrics is None:
-            print("COULD NOT FIND LYRICS. NO DISPLAY.")
-            wait = (duration - base_progress).total_seconds() + 1.5
-            new_song_event.wait(timeout=max(wait, 0))
+            output.on_no_lyrics_found()
+            # wait = (duration - base_progress).total_seconds() + 1.5
+            # new_song_event.wait(timeout=max(wait, 0))
             continue
 
         current_progress = base_progress
@@ -68,10 +68,10 @@ def lyrics_loop(manager: LyricManager):
             next_index = current_index + 1
             if next_index < len(lyrics) and current_progress > lyrics[next_index][0]:
                 current_index = next_index
-                print(lyrics[current_index][1])
+                output.on_lyric(lyrics[current_index][1])
 
             if current_index == len(lyrics) - 1:
-                print("END OF SONG")
+                output.on_end_of_song()
                 break
 
             time.sleep(0.05)
@@ -82,8 +82,10 @@ manager = LyricManager()
 api_thread = threading.Thread(target=spotify_poller, daemon=True, args=(manager,))
 api_thread.start()
 
+output = TerminalOutput()
+
 try:
-    lyrics_loop(manager=manager)
+    lyrics_loop(manager=manager, output=output)
 finally:
     running = False
     print("Finished")
