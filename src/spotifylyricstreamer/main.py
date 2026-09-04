@@ -1,5 +1,5 @@
 from spotifylyricstreamer.LyricManager import LyricManager
-from spotifylyricstreamer.output import OutputInterface, TerminalOutput
+from spotifylyricstreamer.output import OutputInterface, TerminalOutput, MQTTOutput
 from datetime import timedelta
 
 
@@ -24,7 +24,7 @@ def spotify_poller(manager: LyricManager):
             known_name = name
             new_song_event.set()
 
-        time.sleep(5)
+        time.sleep(2)
 
 
 def time_elapsed(start, now) -> timedelta:
@@ -45,6 +45,8 @@ def lyrics_loop(manager: LyricManager, output: OutputInterface):
             start = time.monotonic()
 
         output.on_new_song(name=song.name, artist=song.artist)
+        output.set_lyric_metadata(raw_lyrics=lyrics)
+        output.set_song_metadata(song=song)
 
         if lyrics is None:
             output.on_no_lyrics_found()
@@ -59,15 +61,18 @@ def lyrics_loop(manager: LyricManager, output: OutputInterface):
                 current_index = max(0, i - 1)
                 break
 
-        print(lyrics[current_index][1])
+        output.on_lyric(lyrics[current_index][1])
+        
 
         while not new_song_event.is_set():
             now = time.monotonic()
             current_progress = base_progress + time_elapsed(start, now)
+            output.current_progress(current_progress.total_seconds())
 
             next_index = current_index + 1
             if next_index < len(lyrics) and current_progress > lyrics[next_index][0]:
                 current_index = next_index
+                output.current_index(current_index)
                 output.on_lyric(lyrics[current_index][1])
 
             if current_index == len(lyrics) - 1:
@@ -82,7 +87,7 @@ manager = LyricManager()
 api_thread = threading.Thread(target=spotify_poller, daemon=True, args=(manager,))
 api_thread.start()
 
-output = TerminalOutput()
+output = MQTTOutput()
 
 try:
     lyrics_loop(manager=manager, output=output)
