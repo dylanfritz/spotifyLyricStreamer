@@ -16,8 +16,9 @@ class LyricManager:
 
 
     def update_spotify(self):
-        self.current_song = Song(self.client.currently_playing())
-        self.is_playing = self.current_song.raw["is_playing"]
+        currently_playing = self.client.currently_playing()
+        self.current_song = Song(currently_playing)
+        self.is_playing = self.current_song.raw.get("is_playing", False)
 
         return self.current_song
 
