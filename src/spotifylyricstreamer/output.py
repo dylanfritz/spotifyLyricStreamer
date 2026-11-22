@@ -98,6 +98,8 @@ class MQTTOutput(OutputInterface):
     def set_lyric_metadata(self, raw_lyrics):
         if raw_lyrics is None:
             self.client.publish("lyrics/meta/has_lyrics", "false", retain=True)
+            # Overwrite the retained value so the previous song's lyrics don't linger
+            self.client.publish("lyrics/meta/raw_lyrics", "[]", retain=True)
             return
         self.client.publish("lyrics/meta/has_lyrics", "true", retain=True)
         self.client.publish("lyrics/meta/raw_lyrics", json.dumps(raw_lyrics, default=lambda o: o.total_seconds() if hasattr(o, "total_seconds") else str(o)), retain=True)
