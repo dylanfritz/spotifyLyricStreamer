@@ -1,0 +1,17 @@
+services:
+  lyric-streamer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lyric-streamer
+    restart: unless-stopped
+    networks:
+      - proxy-net
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+
+networks:
+  proxy-net:
+    external: true

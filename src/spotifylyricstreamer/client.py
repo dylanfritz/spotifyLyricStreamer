@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SCOPE = "user-read-currently-playing"
+CACHE_PATH = os.getenv("CACHE_PATH", ".cache")
 
 def create_spotify_client(scopes=[SCOPE]) -> spotipy.Spotify:
     scope_str = " ".join(scopes)
@@ -16,7 +17,7 @@ def create_spotify_client(scopes=[SCOPE]) -> spotipy.Spotify:
             client_id=os.getenv("CLIENT_ID"),
             redirect_uri=os.getenv("REDIRECT_URL"),
             scope=scope_str,
-            cache_path=".cache"
+            cache_path=CACHE_PATH
         )
     else:
         print("Authenticating using OAuth")
@@ -25,7 +26,7 @@ def create_spotify_client(scopes=[SCOPE]) -> spotipy.Spotify:
             client_secret=os.getenv("CLIENT_SECRET"),
             redirect_uri=os.getenv("REDIRECT_URL"),
             scope=scope_str,
-            cache_path=".cache"
+            cache_path=CACHE_PATH
         )
 
     # DO NOT call get_access_token() manually
