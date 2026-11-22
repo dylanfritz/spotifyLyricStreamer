@@ -6,12 +6,13 @@ services:
     container_name: lyric-streamer
     restart: unless-stopped
     networks:
-      - proxy-net
+      - broker
     env_file:
       - .env
     volumes:
       - ./data:/data
 
 networks:
-  proxy-net:
+  broker:
     external: true
+    name: ${MQTT_NETWORK:-mqtt-net}

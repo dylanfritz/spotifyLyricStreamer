@@ -48,6 +48,41 @@ uv run python -m spotifylyricstreamer.main
 
 > The `spotifylyricstreamer` console script is currently a placeholder; run the module as above.
 
+## Docker
+
+The repo includes a `Dockerfile` and a `docker-compose.yml`. The container joins an existing external Docker network, named by `MQTT_NETWORK` in your `.env` (default `mqtt-net`), so it can reach your MQTT broker by name. Use the network your broker's container is attached to. The app only makes outbound connections, so it publishes no ports.
+
+1. **Authenticate on the host first.** The Spotify login needs a browser, which a container doesn't have. Run the app once locally as described above, so a token cache (`.cache`) is created.
+2. **Create `.env` next to `docker-compose.yml`:**
+
+   ```env
+   CLIENT_ID=your_spotify_client_id
+   CLIENT_SECRET=            # optional
+   REDIRECT_URL=http://127.0.0.1:8888/callback
+
+   MQTT_URL=your-mqtt-broker # the broker's container name on the shared network
+   MQTT_PORT=1883
+   MQTT_NETWORK=mqtt-net     # name of the existing Docker network the broker is on
+   ```
+
+3. **Provide the token cache.** Copy it into the mounted data directory:
+
+   ```bash
+   mkdir -p data && cp .cache data/.cache
+   ```
+
+   The container reads and refreshes the token at `/data/.cache` (set with the `CACHE_PATH` environment variable; it defaults to `.cache` outside Docker). If the token is ever revoked, authenticate on the host again and replace `data/.cache`.
+4. **Start it:**
+
+   ```bash
+   docker compose up -d --build
+   docker compose logs -f
+   ```
+
+To update: `git pull && docker compose up -d --build`.
+
+If the broker isn't up when the container starts, the app exits and `restart: unless-stopped` brings it back. Running the app locally while the container is up makes both publish to the same topics.
+
 ## MQTT topics
 
 | Topic | Retained | Payload |
