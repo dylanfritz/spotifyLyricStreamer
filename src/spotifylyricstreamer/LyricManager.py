@@ -16,7 +16,15 @@ class LyricManager:
 
 
     def update_spotify(self):
-        currently_playing = self.client.currently_playing()
+        try:
+            currently_playing = self.client.currently_playing()
+        except Exception as e:
+            # Spotify dropped the connection, or network hiccup.
+            # Keep the previous song so a blip isn't treated as a song change.
+            print(f"Spotify request failed: {e!r}")
+            if self.current_song is not None:
+                return self.current_song
+            currently_playing = None
         self.current_song = Song(currently_playing)
         self.is_playing = self.current_song.raw.get("is_playing", False)
 
