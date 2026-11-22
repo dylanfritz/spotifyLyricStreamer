@@ -16,6 +16,7 @@ class LyricManager:
 
 
     def update_spotify(self):
+        request_start = time.monotonic()
         try:
             currently_playing = self.client.currently_playing()
         except Exception as e:
@@ -26,6 +27,8 @@ class LyricManager:
                 return self.current_song
             currently_playing = None
         self.current_song = Song(currently_playing)
+        # progress_ms was measured somewhere during the request; use its midpoint
+        self.current_song.snapshot_at = (request_start + time.monotonic()) / 2
         self.is_playing = self.current_song.raw.get("is_playing", False)
 
         return self.current_song

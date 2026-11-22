@@ -5,6 +5,8 @@ class Song:
         if not isinstance(song_dict, dict):
             song_dict = {}
         self.raw = song_dict
+        # time.monotonic() at which progress_ms was valid; set by LyricManager
+        self.snapshot_at = None
         # "item" is None for ads / some podcasts, "artists" can be empty
         item = self.raw.get("item") or {}
         artists = item.get("artists") or [{}]

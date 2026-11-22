@@ -42,7 +42,9 @@ def lyrics_loop(manager: LyricManager, output: OutputInterface):
             lyrics = manager.current_lyrics
             base_progress = song.progress_td
             duration = song.duration_td
-            start = time.monotonic()
+            # Measure elapsed time from when Spotify reported the progress,
+            # not from after the (slow) lyric fetch.
+            start = song.snapshot_at if song.snapshot_at is not None else time.monotonic()
 
         output.on_new_song(name=song.name, artist=song.artist)
         output.set_lyric_metadata(raw_lyrics=lyrics)
