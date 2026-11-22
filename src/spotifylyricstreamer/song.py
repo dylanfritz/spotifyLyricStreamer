@@ -11,7 +11,12 @@ class Song:
         item = self.raw.get("item") or {}
         artists = item.get("artists") or [{}]
 
+        album = item.get("album") or {}
+        images = album.get("images") or [{}]
+
         self.name = item.get("name", None)
+        self.album = album.get("name", None)
+        self.art_url = images[0].get("url", None)  # Spotify lists the largest first
         self.artist = artists[0].get("name", None)
 
         self.duration_ms = item.get("duration_ms", 0)

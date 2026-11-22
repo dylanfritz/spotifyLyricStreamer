@@ -32,6 +32,9 @@ REDIRECT_URL=http://127.0.0.1:8888/callback
 
 MQTT_URL=localhost
 MQTT_PORT=1883
+
+# Optional: seconds between progress messages (default 0.25)
+# PROGRESS_INTERVAL=0.25
 ```
 
 The redirect URL must match one registered in your Spotify app settings.
@@ -85,17 +88,31 @@ If the broker isn't up when the container starts, the app exits and `restart: un
 
 ## MQTT topics
 
-| Topic | Retained | Payload |
-| --- | --- | --- |
-| `lyrics/current` | only `[END OF SONG]` | The current lyric line. `[]` for a blank line, `[END OF SONG]` when finished |
-| `lyrics/meta/name` | yes | Song title |
-| `lyrics/meta/artist` | yes | Primary artist |
-| `lyrics/meta/playing` | yes | `true` on new song or resume, `false` when paused or at end of song |
-| `lyrics/meta/has_lyrics` | yes | `true` / `false` |
-| `lyrics/meta/raw_lyrics` | yes | JSON array of `[seconds, line]` pairs for the whole song |
-| `lyrics/meta/raw_song` | yes | Raw Spotify "currently playing" JSON |
-| `lyrics/meta/progress` | no | Playback position in seconds (published ~20 times a second) |
-| `lyrics/meta/index` | no | Index of the current line in `raw_lyrics` |
+All topics are retained unless noted. Topics that don't apply (for example when nothing is playing) are cleared.
+
+| Topic | Payload |
+| --- | --- |
+| `lyrics/current` | The current lyric line. `[]` for a blank line, `[END OF SONG]` when finished |
+| `lyrics/previous` | The line before the current one (empty at the start) |
+| `lyrics/next` | The line after the current one (empty at the end) |
+| `lyrics/meta/online` | `true` while the app is connected, `false` after a shutdown or crash (MQTT Last Will) |
+| `lyrics/meta/state` | `playing`, `paused`, `ended` or `idle` (nothing playing) |
+| `lyrics/meta/playing` | `true` only while `state` is `playing` |
+| `lyrics/meta/name` | Song title |
+| `lyrics/meta/artist` | Primary artist |
+| `lyrics/meta/album` | Album name |
+| `lyrics/meta/art_url` | Album art image URL (largest available) |
+| `lyrics/meta/duration` | Song length in seconds |
+| `lyrics/meta/has_lyrics` | `true` if timestamped lyrics were found, otherwise `false` |
+| `lyrics/meta/lyrics_type` | `synced` (timestamped), `plain` (text only, see `plain_lyrics`) or `none` |
+| `lyrics/meta/plain_lyrics` | Untimed lyrics text, only when `lyrics_type` is `plain` |
+| `lyrics/meta/raw_lyrics` | JSON array of `[seconds, line]` pairs for the whole song (`[]` if none) |
+| `lyrics/meta/index` | Index of the current line in `raw_lyrics` |
+| `lyrics/meta/sync` | `{"position": seconds, "timestamp": unix_time, "playing": bool}`, published on song start, pause, resume and seek |
+| `lyrics/meta/raw_song` | Raw Spotify "currently playing" JSON |
+| `lyrics/meta/progress` | Playback position in seconds. Not retained, published only while playing (every 0.25s by default) |
+
+**Following along without `progress`:** take the latest `sync` message and, while `playing` is true, compute `position + (now - timestamp)`. This needs only a message on each pause or seek, rather than several a second.
 
 Watch everything with:
 
@@ -105,11 +122,11 @@ mosquitto_sub -h localhost -t 'lyrics/#' -v
 
 ## Custom outputs
 
-Output is abstracted behind `OutputInterface` in `output.py`. Two implementations ship: `MQTTOutput` (default) and `TerminalOutput`, which just prints. To use the terminal, change `MQTTOutput()` to `TerminalOutput()` in `main.py`, or subclass `OutputInterface` to send lyrics somewhere else.
+Output is abstracted behind `OutputInterface` in `output.py`. Two implementations ship: `MQTTOutput` (default) and `TerminalOutput`, which just prints. To use the terminal, change `MQTTOutput()` to `TerminalOutput()` in `main.py`, or subclass `OutputInterface` to send lyrics somewhere else. Only the original methods are required; hooks such as `on_state`, `on_idle`, `set_context`, `set_sync` and `close` are optional and do nothing by default.
 
 ## Notes and limitations
 
-- Lyrics come from whatever providers `syncedlyrics` searches, matched by song title and first artist, so some songs won't be found or may be wrong.
+- Lyrics come from whatever providers `syncedlyrics` searches, matched by song title and first artist, so some songs won't be found or may be wrong. Songs with only untimed lyrics are published as `plain_lyrics` but not streamed line by line.
 - Progress is estimated locally between Spotify polls (every 2 seconds). Pausing, resuming and seeking are picked up on the next poll, so expect up to ~2 seconds of lag before the lyrics freeze or jump.
 - Never commit `.env` or `.cache`; both are in `.gitignore`.
 

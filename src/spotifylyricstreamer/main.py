@@ -3,6 +3,7 @@ from spotifylyricstreamer.output import OutputInterface, TerminalOutput, MQTTOut
 from datetime import timedelta
 
 
+import os
 import threading
 import time
 
@@ -35,6 +36,10 @@ def time_elapsed(start, now) -> timedelta:
 # this, treat it as a seek and re-sync. Smaller differences are just noise.
 RESYNC_THRESHOLD = timedelta(seconds=1)
 
+# How often (seconds) to publish playback progress. Lines are still timed at
+# ~50ms precision regardless; this only limits message volume.
+PROGRESS_INTERVAL = float(os.getenv("PROGRESS_INTERVAL", "0.25"))
+
 
 def is_playing(song) -> bool:
     return bool(song.raw.get("is_playing", False))
@@ -50,6 +55,21 @@ def index_for(lyrics, progress: timedelta) -> int:
     return index
 
 
+def show_line(output: OutputInterface, lyrics, index: int):
+    """Publish the line at `index` along with its position and neighbours."""
+    previous_line = lyrics[index - 1][1] if index > 0 else ""
+    next_line = lyrics[index + 1][1] if index + 1 < len(lyrics) else ""
+    output.current_index(index)
+    output.set_context(previous=previous_line, next=next_line)
+    output.on_lyric(lyrics[index][1])
+
+
+def publish_sync(output: OutputInterface, position: timedelta, start: float, playing: bool):
+    """Tell the output where playback is, with a wall-clock timestamp for that position."""
+    timestamp = time.time() - (time.monotonic() - start)
+    output.set_sync(position=position.total_seconds(), timestamp=timestamp, playing=playing)
+
+
 def lyrics_loop(manager: LyricManager, output: OutputInterface):
     while running:
         new_song_event.wait()
@@ -59,27 +79,35 @@ def lyrics_loop(manager: LyricManager, output: OutputInterface):
             song = manager.current_song
             manager.get_lyrics()
             lyrics = manager.current_lyrics
+            plain_lyrics = manager.current_plain_lyrics
             base_progress = song.progress_td
             duration = song.duration_td
             # Measure elapsed time from when Spotify reported the progress,
             # not from after the (slow) lyric fetch.
             start = song.snapshot_at if song.snapshot_at is not None else time.monotonic()
 
+        if song.name is None:
+            output.on_idle()
+            continue
+
         output.on_new_song(name=song.name, artist=song.artist)
-        output.set_lyric_metadata(raw_lyrics=lyrics)
+        output.set_lyric_metadata(raw_lyrics=lyrics, plain_lyrics=plain_lyrics)
         output.set_song_metadata(song=song)
+
+        playing = is_playing(song)
+        if not playing:
+            output.on_state("paused")
 
         if lyrics is None:
             output.on_no_lyrics_found()
             continue
 
-        playing = is_playing(song)
-        if not playing:
-            output.on_playback_state(False)
         anchor = song
+        publish_sync(output, base_progress, start, playing)
 
         current_index = index_for(lyrics, base_progress)
-        output.on_lyric(lyrics[current_index][1])
+        show_line(output, lyrics, current_index)
+        last_progress_publish = 0.0
 
         while not new_song_event.is_set():
             now = time.monotonic()
@@ -95,26 +123,27 @@ def lyrics_loop(manager: LyricManager, output: OutputInterface):
 
                 if snap_playing != playing or abs(reported - expected) > RESYNC_THRESHOLD:
                     if snap_playing != playing:
-                        output.on_playback_state(snap_playing)
+                        output.on_state("playing" if snap_playing else "paused")
                     playing = snap_playing
                     base_progress = reported
                     start = snap.snapshot_at
+                    publish_sync(output, base_progress, start, playing)
 
                     new_index = index_for(lyrics, base_progress)
                     if new_index != current_index:
                         current_index = new_index
-                        output.current_index(current_index)
-                        output.on_lyric(lyrics[current_index][1])
+                        show_line(output, lyrics, current_index)
 
             if playing:
                 current_progress = base_progress + time_elapsed(start, now)
-                output.current_progress(current_progress.total_seconds())
+                if now - last_progress_publish >= PROGRESS_INTERVAL:
+                    last_progress_publish = now
+                    output.current_progress(current_progress.total_seconds())
 
                 next_index = current_index + 1
                 if next_index < len(lyrics) and current_progress > lyrics[next_index][0]:
                     current_index = next_index
-                    output.current_index(current_index)
-                    output.on_lyric(lyrics[current_index][1])
+                    show_line(output, lyrics, current_index)
 
             if current_index == len(lyrics) - 1:
                 output.on_end_of_song()
@@ -137,6 +166,7 @@ def main():
         lyrics_loop(manager=manager, output=output)
     finally:
         running = False
+        output.close()
         print("Finished")
 
 

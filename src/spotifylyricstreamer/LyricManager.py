@@ -1,5 +1,5 @@
 from spotifylyricstreamer.client import create_spotify_client
-from spotifylyricstreamer.lyrics import fetch_parsed_lyrics
+from spotifylyricstreamer.lyrics import fetch_lyrics
 from spotifylyricstreamer.song import Song
 
 import time
@@ -12,6 +12,7 @@ class LyricManager:
         self.current_song = None
         self.is_playing = False
         self.current_lyrics = None
+        self.current_plain_lyrics = None
         self.current_lyrics_song_name = None
 
 
@@ -36,10 +37,16 @@ class LyricManager:
     def get_lyrics(self):
         if (self.current_song is None):
             return
+        if (self.current_song.name is None):
+            # Nothing playing: there is nothing to look up
+            self.current_lyrics = None
+            self.current_plain_lyrics = None
+            self.current_lyrics_song_name = None
+            return
         if (self.current_song.name == self.current_lyrics_song_name):
             print("Song Unchanged... Skipping Lyric Refresh")
             return
         self.current_lyrics_song_name = self.current_song.name
 
-
-        self.current_lyrics = fetch_parsed_lyrics(song_name=self.current_song.name, artist=self.current_song.artist)
+        self.current_lyrics, self.current_plain_lyrics = fetch_lyrics(
+            song_name=self.current_song.name, artist=self.current_song.artist)

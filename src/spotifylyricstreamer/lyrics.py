@@ -107,3 +107,15 @@ def fetch_lrc(song_name:str, artist:str, allow_plain_format=False):
 
 def fetch_parsed_lyrics(song_name:str, artist:str, allow_plain_format=False):
     return parse_lrc(fetch_lrc(song_name=song_name, artist=artist))
+
+
+def fetch_lyrics(song_name:str, artist:str):
+    """Returns (parsed_synced_lyrics, plain_lyrics).
+
+    parsed_synced_lyrics is a list of (timedelta, line) or None. plain_lyrics is
+    the raw text, only set when the provider had lyrics but no usable timestamps.
+    """
+    raw = fetch_lrc(song_name=song_name, artist=artist)
+    parsed = parse_lrc(raw)
+    plain = raw.strip() if (parsed is None and isinstance(raw, str) and raw.strip()) else None
+    return parsed, plain
