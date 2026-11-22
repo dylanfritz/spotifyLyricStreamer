@@ -81,3 +81,7 @@ Output is abstracted behind `OutputInterface` in `output.py`. Two implementation
 ## License
 
 See [LICENSE](LICENSE).
+
+## AI Disclosure
+
+Main code and architecture were handwritten by me. Used Claude for bugchecking, documentation, and deployment. 
