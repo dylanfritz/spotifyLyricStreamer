@@ -40,6 +40,10 @@ class OutputInterface(ABC):
     def current_index(self, index):
         pass 
 
+    def on_playback_state(self, playing: bool):
+        """Called when playback is paused (False) or resumed (True). Optional."""
+        pass
+
 
 
 class TerminalOutput(OutputInterface):
@@ -112,3 +116,6 @@ class MQTTOutput(OutputInterface):
 
     def current_index(self, index):
         self.client.publish("lyrics/meta/index", index)
+
+    def on_playback_state(self, playing):
+        self.client.publish("lyrics/meta/playing", "true" if playing else "false", retain=True)

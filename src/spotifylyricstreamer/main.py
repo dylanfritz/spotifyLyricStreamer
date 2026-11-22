@@ -31,6 +31,25 @@ def time_elapsed(start, now) -> timedelta:
     return timedelta(seconds=now - start)
 
 
+# If Spotify's reported progress differs from our own estimate by more than
+# this, treat it as a seek and re-sync. Smaller differences are just noise.
+RESYNC_THRESHOLD = timedelta(seconds=1)
+
+
+def is_playing(song) -> bool:
+    return bool(song.raw.get("is_playing", False))
+
+
+def index_for(lyrics, progress: timedelta) -> int:
+    """Index of the last lyric line whose timestamp has been reached."""
+    index = 0
+    for i, (ts, _) in enumerate(lyrics):
+        if ts > progress:
+            break
+        index = i
+    return index
+
+
 def lyrics_loop(manager: LyricManager, output: OutputInterface):
     while running:
         new_song_event.wait()
@@ -52,30 +71,50 @@ def lyrics_loop(manager: LyricManager, output: OutputInterface):
 
         if lyrics is None:
             output.on_no_lyrics_found()
-            # wait = (duration - base_progress).total_seconds() + 1.5
-            # new_song_event.wait(timeout=max(wait, 0))
             continue
 
-        current_progress = base_progress
-        current_index = 0
-        for i, (ts, _) in enumerate(lyrics):
-            if ts > current_progress:
-                current_index = max(0, i - 1)
-                break
+        playing = is_playing(song)
+        if not playing:
+            output.on_playback_state(False)
+        anchor = song
 
+        current_index = index_for(lyrics, base_progress)
         output.on_lyric(lyrics[current_index][1])
-        
 
         while not new_song_event.is_set():
             now = time.monotonic()
-            current_progress = base_progress + time_elapsed(start, now)
-            output.current_progress(current_progress.total_seconds())
 
-            next_index = current_index + 1
-            if next_index < len(lyrics) and current_progress > lyrics[next_index][0]:
-                current_index = next_index
-                output.current_index(current_index)
-                output.on_lyric(lyrics[current_index][1])
+            # Re-sync against the newest poll (read without the lock: the poller
+            # holds it during network calls and we must not stall on that).
+            snap = manager.current_song
+            if snap is not anchor and snap is not None and snap.name == song.name:
+                anchor = snap
+                snap_playing = is_playing(snap)
+                reported = snap.progress_td
+                expected = base_progress + time_elapsed(start, snap.snapshot_at) if playing else base_progress
+
+                if snap_playing != playing or abs(reported - expected) > RESYNC_THRESHOLD:
+                    if snap_playing != playing:
+                        output.on_playback_state(snap_playing)
+                    playing = snap_playing
+                    base_progress = reported
+                    start = snap.snapshot_at
+
+                    new_index = index_for(lyrics, base_progress)
+                    if new_index != current_index:
+                        current_index = new_index
+                        output.current_index(current_index)
+                        output.on_lyric(lyrics[current_index][1])
+
+            if playing:
+                current_progress = base_progress + time_elapsed(start, now)
+                output.current_progress(current_progress.total_seconds())
+
+                next_index = current_index + 1
+                if next_index < len(lyrics) and current_progress > lyrics[next_index][0]:
+                    current_index = next_index
+                    output.current_index(current_index)
+                    output.on_lyric(lyrics[current_index][1])
 
             if current_index == len(lyrics) - 1:
                 output.on_end_of_song()
@@ -84,15 +123,22 @@ def lyrics_loop(manager: LyricManager, output: OutputInterface):
             time.sleep(0.05)
 
 
-manager = LyricManager()
+def main():
+    global running
 
-api_thread = threading.Thread(target=spotify_poller, daemon=True, args=(manager,))
-api_thread.start()
+    manager = LyricManager()
 
-output = MQTTOutput()
+    api_thread = threading.Thread(target=spotify_poller, daemon=True, args=(manager,))
+    api_thread.start()
 
-try:
-    lyrics_loop(manager=manager, output=output)
-finally:
-    running = False
-    print("Finished")
+    output = MQTTOutput()
+
+    try:
+        lyrics_loop(manager=manager, output=output)
+    finally:
+        running = False
+        print("Finished")
+
+
+if __name__ == "__main__":
+    main()

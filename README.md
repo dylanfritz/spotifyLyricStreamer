@@ -90,7 +90,7 @@ If the broker isn't up when the container starts, the app exits and `restart: un
 | `lyrics/current` | only `[END OF SONG]` | The current lyric line. `[]` for a blank line, `[END OF SONG]` when finished |
 | `lyrics/meta/name` | yes | Song title |
 | `lyrics/meta/artist` | yes | Primary artist |
-| `lyrics/meta/playing` | yes | `true` on new song, `false` at end of song |
+| `lyrics/meta/playing` | yes | `true` on new song or resume, `false` when paused or at end of song |
 | `lyrics/meta/has_lyrics` | yes | `true` / `false` |
 | `lyrics/meta/raw_lyrics` | yes | JSON array of `[seconds, line]` pairs for the whole song |
 | `lyrics/meta/raw_song` | yes | Raw Spotify "currently playing" JSON |
@@ -110,7 +110,7 @@ Output is abstracted behind `OutputInterface` in `output.py`. Two implementation
 ## Notes and limitations
 
 - Lyrics come from whatever providers `syncedlyrics` searches, matched by song title and first artist, so some songs won't be found or may be wrong.
-- Progress is estimated locally after a song starts, so seeking within a song isn't picked up until the song changes.
+- Progress is estimated locally between Spotify polls (every 2 seconds). Pausing, resuming and seeking are picked up on the next poll, so expect up to ~2 seconds of lag before the lyrics freeze or jump.
 - Never commit `.env` or `.cache`; both are in `.gitignore`.
 
 ## License
